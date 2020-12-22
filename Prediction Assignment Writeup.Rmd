@@ -1,0 +1,160 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Harsha vardhan reddy"
+date: "12/23/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Prediction Assignment Writeup
+
+One thing that people regularly do is quantify how  much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.(predict the manner in which they did the exercise)
+
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Data
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+# Goal of the project
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+
+## loading packages
+
+```{r}
+library(rattle)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(corrplot)
+library(randomForest)
+library(RColorBrewer)
+set.seed(333)
+```
+
+## Read Data
+
+```{r read.csv}
+trainRaw <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+testRaw <- read.csv("pml-testing.csv", na.strings = c("NA", "" ))
+dim(trainRaw)
+dim(testRaw)
+rm(trainFile)
+rm(testFile)
+```
+
+## cleaning data 
+
+removing meaningless variables and outliers, like near zero variance variables removing columns of dataset that do not contribute much to accelerometer measurements.
+
+```{r}
+NZV <- nearZeroVar(trainRaw, saveMetrics = TRUE)
+head(NZV, 20)
+training01 <- trainRaw[, !NZV$nzv]
+testing01 <- testRaw[, !NZV$nzv]
+dim(training01)
+dim(testing01)
+rm(trainRaw)
+rm(testRaw)
+rm(NZV)
+regex <- grepl("^X|timestamp|user_name", names(training01))
+training <- training01[, !regex]
+testing <- testing01[, !regex]
+rm(regex)
+rm(training01)
+rm(testing01)
+dim(training)
+cond <- (colSums(is.na(training)) == 0)
+training <- training[, cond]
+testing <- testing[, cond]
+rm(cond)
+```
+After cleaning training data set contain 19622 observations and 54 variables and testing data set contain 20 observations and 54 variables.
+
+#### correlation Matrix in training Data set.
+
+```{r}
+corrplot(cor(training[, -length(names(training))]), method = "circle", tl.cex = 0.5)
+```
+
+# splitting training set 
+
+```{r}
+set.seed(333)
+inTrain <- createDataPartition(training$classe, p = 0.80, list = FALSE)
+validation <- training[-inTrain, ]
+training <- training[inTrain, ]
+rm(inTrain)
+```
+training data set 80%, validation data set 20%
+
+# Data Modelling
+
+## Random Forest
+
+training 
+```{r}
+modelRF <- train(classe ~ ., data = training, method = "rf", trControl = trainControl(method = "cv", 5), ntree = 250)
+modelRF
+```
+validation data set(20%)
+```{r}
+predictRF <- predict(modelRF, validation)
+confusionMatrix(as.factor(validation$classe), predictRF)
+```
+Accuracy of the Random Forest Model is 99.8810535% and the Estimated Out-of-Sample Error is 0.1189465%
+
+## Decision Tree
+
+```{r}
+modelTree <- rpart(classe ~ ., data = training, method = "class")
+predictTree <- predict(modelTree, validation, type = "class")
+confusionMatrix(as.factor(validation$classe), predictTree)
+```
+Accuracy of the Random Forest Model is 74.4774851% and the Estimated Out-of-Sample Error is 25.5225149%.
+
+#### so random forest is the better model.
+
+## Important variables
+
+```{r}
+vi <- varImp(modelRF)$importance
+vi[head(order(unlist(vi), decreasing = TRUE), 5L), , drop = FALSE]
+```
+
+## random forest on test data set
+
+```{r}
+rm(accuracy)
+rm(ose)
+predict(modelRF, testing[, -length(names(testing))])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
